@@ -33,15 +33,15 @@ stages:
       nfiles: 8
     - path: src/train.py
       hash: md5
-      md5: 4ab5231353931b475f824c7f7644b492
-      size: 4157
+      md5: a7d17f3c8d2ef603ac7e1d595433fe9c
+      size: 5817
     outs:
     - path: metrics.json
       hash: md5
-      md5: c879f91609769df1585638822adf91d5
-      size: 75
+      md5: 3a89eb49f66ff5c130b8768925409cdc
+      size: 77
     - path: model/spark_model
       hash: md5
-      md5: 172024bc6912f3b8143d8e4bcea30701.dir
-      size: 10689
+      md5: e8fa1e4de1f223c9785635f05a2ba2bd.dir
+      size: 9910
       nfiles: 48

@@ -7,21 +7,25 @@ import json
 from pyspark.sql import SparkSession
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import VectorAssembler, StringIndexer, OneHotEncoder
-from pyspark.ml.classification import DecisionTreeClassifier
+# Import multiple classifiers
+from pyspark.ml.classification import DecisionTreeClassifier, LogisticRegression
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-
-# Import the MLflow client to interact with the registry
+# Import tools for hyperparameter tuning
+from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from mlflow.tracking import MlflowClient
 
 def main(train_data_path, model_output_path):
-    spark = SparkSession.builder.appName("SparkMLlibTraining").getOrCreate()
+    spark = SparkSession.builder.appName("SparkMLlibTuning").getOrCreate()
 
-    with mlflow.start_run() as run:
-        print("✅ MLflow Run Started.")
+    # Use a nested run to group all tuning trials under one parent run
+    with mlflow.start_run(run_name="Hyperparameter Tuning") as parent_run:
+        print("✅ MLflow Parent Run Started for Hyperparameter Tuning.")
         df = spark.read.parquet(train_data_path)
-        print("   - Data loaded into Spark DataFrame.")
+        # Split data for cross-validation
+        (training_data, test_data) = df.randomSplit([0.8, 0.2], seed=42)
+        print("   - Data loaded and split for training and validation.")
 
-        # --- Feature Engineering Pipeline ---
+        # --- 1. Define the Feature Engineering Pipeline ---
         categorical_cols = ['Sex', 'Embarked']
         numerical_cols = ['Pclass', 'Age', 'SibSp', 'Parch', 'Fare']
         stages = []
@@ -32,62 +36,85 @@ def main(train_data_path, model_output_path):
         feature_cols = numerical_cols + [f"{col}_vec" for col in categorical_cols]
         assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
         stages += [assembler]
-        
-        # --- Model Definition ---
-        max_depth = 5
-        mlflow.log_param("max_depth", max_depth)
-        dt = DecisionTreeClassifier(labelCol="Survived", featuresCol="features", maxDepth=max_depth)
-        stages += [dt]
-        
-        # --- Training ---
-        pipeline = Pipeline(stages=stages)
-        model = pipeline.fit(df)
-        print("   - Model training complete.")
 
-        # --- Evaluation ---
-        predictions = model.transform(df)
-        evaluator_accuracy = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="accuracy")
-        evaluator_f1 = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="f1")
-        accuracy = evaluator_accuracy.evaluate(predictions)
-        f1 = evaluator_f1.evaluate(predictions)
-        mlflow.log_metric("accuracy", accuracy)
-        mlflow.log_metric("f1_score", f1)
-        print(f"   - Logging metrics: Accuracy={accuracy:.4f}, F1 Score={f1:.4f}")
+        # --- 2. Define Models and Hyperparameter Grids ---
+        # We will test two different algorithms
+        dt = DecisionTreeClassifier(labelCol="Survived", featuresCol="features")
+        lr = LogisticRegression(labelCol="Survived", featuresCol="features")
 
-        # --- Save DVC Outputs ---
+        # Create a parameter grid for Decision Tree
+        dt_param_grid = ParamGridBuilder() \
+            .addGrid(dt.maxDepth, [3, 5, 7]) \
+            .addGrid(dt.maxBins, [32, 40]) \
+            .build()
+
+        # Create a parameter grid for Logistic Regression
+        lr_param_grid = ParamGridBuilder() \
+            .addGrid(lr.regParam, [0.01, 0.1, 0.5]) \
+            .addGrid(lr.elasticNetParam, [0.0, 0.5, 1.0]) \
+            .build()
+        
+        # Combine the parameter grids
+        param_grid = dt_param_grid + lr_param_grid
+        print("   - Defined models and hyperparameter grids for tuning.")
+
+        # --- 3. Set Up the Cross-Validator ---
+        # The CrossValidator will test all models and parameters
+        evaluator = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="f1")
+
+        # The feature pipeline stages are combined with the classifier
+        pipeline = Pipeline(stages=stages + [dt]) # Placeholder for classifier
+        
+        cv = CrossValidator(estimator=pipeline,
+                            estimatorParamMaps=param_grid,
+                            evaluator=evaluator,
+                            numFolds=3, # Use 3-fold cross-validation
+                            parallelism=2) # Run two trials in parallel
+
+        print("   - Starting Cross-Validation...")
+        # This will automatically trigger MLflow to log child runs for each trial
+        cv_model = cv.fit(training_data)
+        print("   - Cross-Validation complete. Best model found.")
+
+        # --- 4. Evaluate the Best Model and Log Metrics ---
+        best_model = cv_model.bestModel
+        predictions = best_model.transform(test_data)
+        
+        accuracy = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="accuracy").evaluate(predictions)
+        f1 = evaluator.evaluate(predictions)
+
+        # Log metrics to the parent MLflow run
+        mlflow.log_metric("best_model_accuracy", accuracy)
+        mlflow.log_metric("best_model_f1_score", f1)
+        print(f"   - Logging best model metrics: Accuracy={accuracy:.4f}, F1 Score={f1:.4f}")
+
+        # --- 5. Save Outputs for DVC ---
         metrics = {"accuracy": accuracy, "f1_score": f1}
         with open("metrics.json", "w") as f:
             json.dump(metrics, f, indent=4)
         print("   - Metrics saved to metrics.json")
-        model.write().overwrite().save(model_output_path)
-        print(f"   - Spark model saved to {model_output_path}")
 
-        # --- MLflow Model Logging and Registration (NEW) ---
-        mlflow.spark.log_model(model, "spark-model", registered_model_name="TitanicSparkModel")
-        print("   - Model logged to MLflow.")
+        best_model.write().overwrite().save(model_output_path)
+        print(f"   - Best Spark model saved to {model_output_path}")
 
-        # Initialize MLflow client and get the model URI
-        client = MlflowClient()
-        run_id = run.info.run_id
-        model_uri = f"runs:/{run_id}/spark-model"
+        # --- 6. Log and Register the Best Model ---
+        mlflow.spark.log_model(best_model, "spark-model", registered_model_name="TitanicSparkModel-Tuned")
+        print("   - Best model logged to MLflow.")
         
-        # Register the model and get its version
-        model_version = mlflow.register_model(model_uri, "TitanicSparkModel")
-        print(f"   - Registered model 'TitanicSparkModel', version {model_version.version}.")
-
-        # Transition the new model version to the "Staging" stage
+        client = MlflowClient()
+        model_uri = f"runs:/{parent_run.info.run_id}/spark-model"
+        model_version = mlflow.register_model(model_uri, "TitanicSparkModel-Tuned")
+        print(f"   - Registered model 'TitanicSparkModel-Tuned', version {model_version.version}.")
         client.transition_model_version_stage(
-            name="TitanicSparkModel",
-            version=model_version.version,
-            stage="Staging"
+            name="TitanicSparkModel-Tuned", version=model_version.version, stage="Staging"
         )
         print(f"   - Transitioned model version {model_version.version} to 'Staging'.")
 
     spark.stop()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train a distributed model and register it with MLflow")
+    parser = argparse.ArgumentParser(description="Tune and train a distributed model with Spark MLlib")
     parser.add_argument("--train_data", required=True, help="Path to processed train data")
-    parser.add_argument("--model_out", required=True, help="Path to save the final Spark model")
+    parser.add_argument("--model_out", required=True, help="Path to save the final best model")
     args = parser.parse_args()
     main(args.train_data, args.model_out)

@@ -1,4 +1,4 @@
-name: MLOps CI/CD Pipeline (with Debugging)
+name: MLOps CI/CD Pipeline
 
 on:
   push:
@@ -27,37 +27,24 @@ jobs:
     - name: Set up DVC
       uses: iterative/dvc-action@v1
 
-    - name: Configure DVC Google App Credentials
+    # This single step authenticates using the service account.
+    # It reads the secret and creates a temporary credentials file for DVC to use.
+    - name: Authenticate DVC with Google Service Account
       run: |
-        dvc remote modify myremote gdrive_client_id ${{ secrets.GDRIVE_CLIENT_ID }}
-        dvc remote modify myremote gdrive_client_secret ${{ secrets.GDRIVE_CLIENT_SECRET }}
+        echo '${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}' > gdrive-creds.json
+        dvc remote modify --local myremote gdrive_service_account_json_file_path gdrive-creds.json
 
-    - name: Authenticate DVC with Google User Token
-      run: |
-        mkdir -p .dvc/tmp
-        echo '${{ secrets.GDRIVE_CREDENTIALS_DATA }}' > .dvc/tmp/gdrive-user-credentials.json
-
-    # --- NEW DEBUGGING STEPS ---
-    - name: "[DEBUG] Verify DVC Config File"
-      run: |
-        echo "--- Contents of .dvc/config ---"
-        cat .dvc/config
-        echo "---------------------------------"
-
-    - name: "[DEBUG] Verify Credentials File"
-      run: |
-        echo "--- Verifying existence of credentials file ---"
-        ls -l .dvc/tmp/
-        echo "-----------------------------------------------"
-
+    # Now, the pull command will succeed without interaction
     - name: Pull DVC-tracked data
-      run: dvc pull -v # Added -v for verbose output
+      run: |
+        dvc pull
 
     - name: Reproduce DVC pipeline
-      run: dvc repro
+      run: |
+        dvc repro
 
     - name: Run Pytest on the API
       run: |
         uvicorn api:app --host 0.0.0.0 --port 8000 &
-        sleep 15
+        sleep 15 # Wait for server to start
         pytest -v
