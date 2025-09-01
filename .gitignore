@@ -1,0 +1,4 @@
+# Ignore DVC and Google credential files
+.dvc/tmp
+.dvc/gdrive-user-credentials.json
+client_secret_*.json
