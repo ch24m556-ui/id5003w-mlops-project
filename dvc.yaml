@@ -1,55 +1,19 @@
-name: MLOps CI Pipeline
-
-on:
-  push:
-    branches: [ master, main ]
-  pull_request:
-    branches: [ master, main ]
-
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v3
-
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Set up DVC
-      uses: iterative/dvc-action@v1
-
-    # This step configures DVC with your private Google App credentials
-    - name: Configure DVC Google App Credentials
-      run: |
-        dvc remote modify myremote gdrive_client_id ${{ secrets.GDRIVE_CLIENT_ID }}
-        dvc remote modify myremote gdrive_client_secret ${{ secrets.GDRIVE_CLIENT_SECRET }}
-
-    # This step places your user token where DVC can find it
-    - name: Authenticate DVC with Google User Token
-      run: |
-        mkdir -p .dvc/tmp
-        echo '${{ secrets.GDRIVE_CREDENTIALS_DATA }}' > .dvc/tmp/gdrive-user-credentials.json
-
-    # Now, the pull command has everything it needs to run without interaction
-    - name: Pull DVC-tracked data
-      run: |
-        dvc pull
-
-    - name: Reproduce DVC pipeline
-      run: |
-        dvc repro
-
-    - name: Verify pipeline outputs
-      run: |
-        ls -lh model/
-        ls -lh metrics.json
-        echo "✅ CI Pipeline completed successfully!"
+stages:
+  preprocess:
+    cmd: python src/preprocess.py --train_input data/train.csv --test_input data/test.csv --output_path data/processed
+    deps:
+    - data/test.csv
+    - data/train.csv
+    - src/preprocess.py
+    outs:
+    - data/processed
+  train:
+    cmd: python src/train.py --train_data data/processed/train --model_out model/model.joblib
+    deps:
+    - data/processed
+    - src/train.py
+    outs:
+    - model/model.joblib
+    metrics:
+    - metrics.json:
+        cache: false
