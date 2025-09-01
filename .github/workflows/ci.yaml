@@ -1,5 +1,3 @@
-# .github/workflows/ci.yaml
-
 name: MLOps CI Pipeline
 
 on:
@@ -29,12 +27,19 @@ jobs:
     - name: Set up DVC
       uses: iterative/dvc-action@v1
 
-    # --- THIS IS THE CRUCIAL NEW STEP ---
-    - name: Authenticate DVC with Google Drive
+    # This step configures DVC with your private Google App credentials
+    - name: Configure DVC Google App Credentials
+      run: |
+        dvc remote modify myremote gdrive_client_id ${{ secrets.GDRIVE_CLIENT_ID }}
+        dvc remote modify myremote gdrive_client_secret ${{ secrets.GDRIVE_CLIENT_SECRET }}
+
+    # This step places your user token where DVC can find it
+    - name: Authenticate DVC with Google User Token
       run: |
         mkdir -p .dvc/tmp
         echo '${{ secrets.GDRIVE_CREDENTIALS_DATA }}' > .dvc/tmp/gdrive-user-credentials.json
 
+    # Now, the pull command has everything it needs to run without interaction
     - name: Pull DVC-tracked data
       run: |
         dvc pull
