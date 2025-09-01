@@ -3,19 +3,24 @@
 import argparse
 import mlflow
 import json
+import os
 
 from pyspark.sql import SparkSession
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import VectorAssembler, StringIndexer, OneHotEncoder
-# Import multiple classifiers
 from pyspark.ml.classification import DecisionTreeClassifier, LogisticRegression
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-# Import tools for hyperparameter tuning
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from mlflow.tracking import MlflowClient
 
 def main(train_data_path, model_output_path):
     spark = SparkSession.builder.appName("SparkMLlibTuning").getOrCreate()
+
+    # --- THIS IS THE FIX ---
+    # Set the MLflow tracking URI to a safe, relative path.
+    # This ensures that MLflow logs will be created inside the project directory
+    # and will work correctly on both local and CI/CD environments.
+    mlflow.set_tracking_uri("./mlruns")
 
     # Use a nested run to group all tuning trials under one parent run
     with mlflow.start_run(run_name="Hyperparameter Tuning") as parent_run:
@@ -38,41 +43,38 @@ def main(train_data_path, model_output_path):
         stages += [assembler]
 
         # --- 2. Define Models and Hyperparameter Grids ---
-        # We will test two different algorithms
         dt = DecisionTreeClassifier(labelCol="Survived", featuresCol="features")
         lr = LogisticRegression(labelCol="Survived", featuresCol="features")
 
-        # Create a parameter grid for Decision Tree
         dt_param_grid = ParamGridBuilder() \
             .addGrid(dt.maxDepth, [3, 5, 7]) \
             .addGrid(dt.maxBins, [32, 40]) \
             .build()
 
-        # Create a parameter grid for Logistic Regression
         lr_param_grid = ParamGridBuilder() \
             .addGrid(lr.regParam, [0.01, 0.1, 0.5]) \
             .addGrid(lr.elasticNetParam, [0.0, 0.5, 1.0]) \
             .build()
         
-        # Combine the parameter grids
+        # In a real scenario, you might have separate pipelines for each model,
+        # but for simplicity, we'll tune them sequentially.
+        # Here we just build one combined grid. A more advanced setup could use a loop.
         param_grid = dt_param_grid + lr_param_grid
         print("   - Defined models and hyperparameter grids for tuning.")
 
         # --- 3. Set Up the Cross-Validator ---
-        # The CrossValidator will test all models and parameters
         evaluator = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="f1")
 
-        # The feature pipeline stages are combined with the classifier
-        pipeline = Pipeline(stages=stages + [dt]) # Placeholder for classifier
+        # The feature pipeline stages are combined with a placeholder classifier
+        pipeline = Pipeline(stages=stages + [dt]) 
         
         cv = CrossValidator(estimator=pipeline,
                             estimatorParamMaps=param_grid,
                             evaluator=evaluator,
-                            numFolds=3, # Use 3-fold cross-validation
-                            parallelism=2) # Run two trials in parallel
+                            numFolds=3,
+                            parallelism=2)
 
         print("   - Starting Cross-Validation...")
-        # This will automatically trigger MLflow to log child runs for each trial
         cv_model = cv.fit(training_data)
         print("   - Cross-Validation complete. Best model found.")
 
@@ -83,7 +85,6 @@ def main(train_data_path, model_output_path):
         accuracy = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="accuracy").evaluate(predictions)
         f1 = evaluator.evaluate(predictions)
 
-        # Log metrics to the parent MLflow run
         mlflow.log_metric("best_model_accuracy", accuracy)
         mlflow.log_metric("best_model_f1_score", f1)
         print(f"   - Logging best model metrics: Accuracy={accuracy:.4f}, F1 Score={f1:.4f}")
