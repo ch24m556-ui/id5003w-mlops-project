@@ -1,0 +1,52 @@
+# .github/workflows/ci.yaml
+
+name: MLOps CI Pipeline
+
+# Trigger the workflow on pushes to the 'master' or 'main' branch
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest  # Use a standard Linux environment
+
+    steps:
+    # 1. Check out the repository code
+    - name: Check out code
+      uses: actions/checkout@v3
+
+    # 2. Set up Python environment
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    # 3. Install Python dependencies from requirements.txt
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 4. Set up DVC and pull data
+    - name: Set up DVC
+      uses: iterative/dvc-action@v1
+
+    - name: Pull DVC-tracked data
+      run: |
+        dvc pull
+
+    # 5. Reproduce the full DVC pipeline
+    # This is the core test: can we retrain the model from scratch?
+    - name: Reproduce DVC pipeline
+      run: |
+        dvc repro
+
+    # 6. Check that the model and metrics files were created
+    - name: Verify pipeline outputs
+      run: |
+        ls -lh model/
+        ls -lh metrics.json
+        echo "✅ CI Pipeline completed successfully!"
