@@ -1,0 +1,14 @@
+artifact_uri: file:///P:/MTech/Sem3/AI_Scale/end_term_project/mlops-project/mlruns/0/ad4c17f43d6644a19b62e84fd98414bd/artifacts
+end_time: 1756710060081
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: ad4c17f43d6644a19b62e84fd98414bd
+run_name: loud-goose-957
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1756710052591
+status: 3
+tags: []
+user_id: prajw
