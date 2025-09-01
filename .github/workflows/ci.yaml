@@ -22,28 +22,31 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # DVC Studio remote uses S3, so we need to install the s3 dependency
         pip install "dvc[s3]"
         pip install -r requirements.txt
 
     - name: Set up DVC
       uses: iterative/dvc-action@v1
 
-    # DVC will automatically use the DVC_STUDIO_TOKEN secret. No other steps are needed.
+    # DVC will automatically use the AWS_ environment variables from the secrets.
     - name: Pull DVC-tracked data
       env:
-        DVC_STUDIO_TOKEN: ${{ secrets.DVC_STUDIO_TOKEN }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: dvc pull
 
     - name: Reproduce DVC pipeline
       env:
-        DVC_STUDIO_TOKEN: ${{ secrets.DVC_STUDIO_TOKEN }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: dvc repro
 
     - name: Run Pytest on the API
       env:
-        DVC_STUDIO_TOKEN: ${{ secrets.DVC_STUDIO_TOKEN }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: |
         uvicorn api:app --host 0.0.0.0 --port 8000 &
         sleep 15
         pytest -v
+
