@@ -1,0 +1,14 @@
+artifact_uri: file:///P:/MTech/Sem3/AI_Scale/end_term_project/mlops-project/mlruns/0/5e40f8d8a72749a3bb4de3ba8a3f1028/artifacts
+end_time: 1756741941734
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 5e40f8d8a72749a3bb4de3ba8a3f1028
+run_name: rebellious-rat-44
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1756741872122
+status: 3
+tags: []
+user_id: prajw

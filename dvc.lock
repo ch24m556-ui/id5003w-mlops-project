@@ -24,7 +24,7 @@ stages:
       nfiles: 8
   train:
     cmd: python src/train.py --train_data data/processed/train --model_out 
-      model/model.joblib
+      model/spark_model
     deps:
     - path: data/processed
       hash: md5
@@ -33,14 +33,15 @@ stages:
       nfiles: 8
     - path: src/train.py
       hash: md5
-      md5: 1af8cf67f0b020a6794e58df583e9258
-      size: 2766
+      md5: 4ab5231353931b475f824c7f7644b492
+      size: 4157
     outs:
     - path: metrics.json
       hash: md5
-      md5: 2363ef27e765e40aa04c604950b190d6
-      size: 77
-    - path: model/model.joblib
+      md5: c879f91609769df1585638822adf91d5
+      size: 75
+    - path: model/spark_model
       hash: md5
-      md5: 80850c520d98eb69a07f3c49d177ad61
-      size: 5401
+      md5: 172024bc6912f3b8143d8e4bcea30701.dir
+      size: 10689
+      nfiles: 48
