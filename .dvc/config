@@ -1,6 +1,8 @@
 [core]
-    remote = myremote
+    remote = studio
 ['remote "myremote"']
     url = gdrive://1W1XTb5OCRQKMihADwgHGyaO-Ab8iZkuQ
     gdrive_client_id = unset
     gdrive_client_secret = unset
+['remote "studio"']
+    url = s3://studio-dvc/ID5003W-PROJECT-ch24m556-ui

@@ -22,29 +22,28 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        # DVC Studio remote uses S3, so we need to install the s3 dependency
+        pip install "dvc[s3]"
         pip install -r requirements.txt
 
     - name: Set up DVC
       uses: iterative/dvc-action@v1
 
-    # This single step authenticates using the service account.
-    # It reads the secret and creates a temporary credentials file for DVC to use.
-    - name: Authenticate DVC with Google Service Account
-      run: |
-        echo '${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}' > gdrive-creds.json
-        dvc remote modify --local myremote gdrive_service_account_json_file_path gdrive-creds.json
-
-    # Now, the pull command will succeed without interaction
+    # DVC will automatically use the DVC_STUDIO_TOKEN secret. No other steps are needed.
     - name: Pull DVC-tracked data
-      run: |
-        dvc pull
+      env:
+        DVC_STUDIO_TOKEN: ${{ secrets.DVC_STUDIO_TOKEN }}
+      run: dvc pull
 
     - name: Reproduce DVC pipeline
-      run: |
-        dvc repro
+      env:
+        DVC_STUDIO_TOKEN: ${{ secrets.DVC_STUDIO_TOKEN }}
+      run: dvc repro
 
     - name: Run Pytest on the API
+      env:
+        DVC_STUDIO_TOKEN: ${{ secrets.DVC_STUDIO_TOKEN }}
       run: |
         uvicorn api:app --host 0.0.0.0 --port 8000 &
-        sleep 15 # Wait for server to start
+        sleep 15
         pytest -v
