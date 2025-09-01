@@ -1,0 +1,11 @@
+stages:
+  preprocess:
+    cmd: python src/data_processing.py --train_input data/raw/train.csv 
+      --test_input data/raw/test.csv --output_path data/processed
+    deps:
+    - data/raw/test.csv
+    - data/raw/train.csv
+    - src/data_processing.py
+    outs:
+    - data/processed
+    frozen: true
