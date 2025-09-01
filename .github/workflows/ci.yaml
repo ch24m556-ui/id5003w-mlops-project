@@ -27,28 +27,29 @@ jobs:
     - name: Set up DVC
       uses: iterative/dvc-action@v1
 
+    # This NEW step configures DVC with your private Google App credentials
     - name: Configure DVC Google App Credentials
       run: |
         dvc remote modify myremote gdrive_client_id ${{ secrets.GDRIVE_CLIENT_ID }}
         dvc remote modify myremote gdrive_client_secret ${{ secrets.GDRIVE_CLIENT_SECRET }}
 
+    # This step places your user token where DVC can find it
     - name: Authenticate DVC with Google User Token
       run: |
         mkdir -p .dvc/tmp
         echo '${{ secrets.GDRIVE_CREDENTIALS_DATA }}' > .dvc/tmp/gdrive-user-credentials.json
 
+    # Now, the pull command has everything it needs to run without interaction
     - name: Pull DVC-tracked data
-      run: dvc pull
+      run: |
+        dvc pull
 
     - name: Reproduce DVC pipeline
-      run: dvc repro
-
-    # --- NEW STEPS FOR API TESTING ---
-    - name: Start FastAPI server in background
-      run: uvicorn api:app --host 0.0.0.0 --port 8000 &
-
-    - name: Wait for API to be ready
-      run: sleep 15 # Give the server a moment to start up
+      run: |
+        dvc repro
 
     - name: Run Pytest on the API
-      run: pytest -v
+      run: |
+        uvicorn api:app --host 0.0.0.0 --port 8000 &
+        sleep 15 # Wait for server to start
+        pytest -v
