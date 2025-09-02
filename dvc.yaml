@@ -1,19 +1,26 @@
 stages:
   preprocess:
-    cmd: python src/data_processing.py --train_input data/raw/train.csv --test_input data/raw/test.csv --output_path data/processed
+    cmd: python src/data_processing.py --train_input data/raw/train.csv --test_input data/raw/test.csv --output_path data/processed --baseline_sample_path data/baseline_sample
     deps:
-    - data/raw/test.csv
-    - data/raw/train.csv
-    - src/data_processing.py
+      - data/raw/test.csv
+      - data/raw/train.csv
+      - src/data_processing.py
     outs:
-    - data/processed
+      - data/processed
+      - data/baseline_sample
+  validate_data:
+    cmd: python src/validate_data.py --new_data data/processed/train --baseline_sample data/baseline_sample
+    deps:
+      - src/validate_data.py
+      - data/processed/train
+      - data/baseline_sample
   train:
     cmd: python src/train.py --train_data data/processed/train --model_out model/spark_model
     deps:
-    - data/processed
-    - src/train.py
+      - data/processed
+      - src/train.py
     outs:
-    - model/spark_model
+      - model/spark_model
     metrics:
-    - metrics.json:
-        cache: false
+      - metrics.json:
+          cache: false

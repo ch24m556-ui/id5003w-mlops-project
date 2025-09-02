@@ -2,7 +2,8 @@ schema: '2.0'
 stages:
   preprocess:
     cmd: python src/data_processing.py --train_input data/raw/train.csv 
-      --test_input data/raw/test.csv --output_path data/processed
+      --test_input data/raw/test.csv --output_path data/processed 
+      --baseline_sample_path data/baseline_sample
     deps:
     - path: data/raw/test.csv
       hash: md5
@@ -10,17 +11,22 @@ stages:
       size: 28629
     - path: data/raw/train.csv
       hash: md5
-      md5: 2309cc5f04782ed9bb6016d9f4e381cf
-      size: 61194
+      md5: 6b81cf2ebc5496e3a2940421f24506fe
+      size: 96190
     - path: src/data_processing.py
       hash: md5
-      md5: 9b2d3b0c4cd639b2548834d9069a46e4
-      size: 3203
+      md5: 162f826d8287c13ec6e4c94602fbc9e7
+      size: 3686
     outs:
+    - path: data/baseline_sample
+      hash: md5
+      md5: af235ae20eb4f66391c2a41871ebb86a.dir
+      size: 5301
+      nfiles: 4
     - path: data/processed
       hash: md5
-      md5: aa0b7dce6d485b0cb7842ef8c6addca6.dir
-      size: 12518
+      md5: 4cc809deb649f3cdc361035893e015ce.dir
+      size: 16307
       nfiles: 8
   train:
     cmd: python src/train.py --train_data data/processed/train --model_out 
@@ -28,20 +34,38 @@ stages:
     deps:
     - path: data/processed
       hash: md5
-      md5: aa0b7dce6d485b0cb7842ef8c6addca6.dir
-      size: 12518
+      md5: 4cc809deb649f3cdc361035893e015ce.dir
+      size: 16307
       nfiles: 8
     - path: src/train.py
       hash: md5
-      md5: a7d17f3c8d2ef603ac7e1d595433fe9c
-      size: 5817
+      md5: 42b5a6b71fb9814aebff124b5da8482c
+      size: 5072
     outs:
     - path: metrics.json
       hash: md5
-      md5: 3a89eb49f66ff5c130b8768925409cdc
+      md5: e8aef79c8838a937cae3b18cf2cccf0f
       size: 77
     - path: model/spark_model
       hash: md5
-      md5: e8fa1e4de1f223c9785635f05a2ba2bd.dir
-      size: 9910
+      md5: ba3d6b40900a4dc001891f62ca4e4d06.dir
+      size: 12367
       nfiles: 48
+  validate_data:
+    cmd: python src/validate_data.py --new_data data/processed/train 
+      --baseline_sample data/baseline_sample
+    deps:
+    - path: data/baseline_sample
+      hash: md5
+      md5: af235ae20eb4f66391c2a41871ebb86a.dir
+      size: 5301
+      nfiles: 4
+    - path: data/processed/train
+      hash: md5
+      md5: c803b7f43ea8a887c2c657a9025bb259.dir
+      size: 11160
+      nfiles: 4
+    - path: src/validate_data.py
+      hash: md5
+      md5: ab59b98ce28f722b5d713104b3bad8f5
+      size: 2058
