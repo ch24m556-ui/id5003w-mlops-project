@@ -1,0 +1,28 @@
+# Ignore virtual environment folders
+.venv
+venv
+env
+
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore DVC cache and local config
+.dvc/cache
+.dvc/config.local
+
+# Ignore MLflow local tracking data
+mlruns/
+
+# Ignore IDE and OS-specific files
+.idea/
+.vscode/
+*.DS_Store
+
+# Ignore Git files
+.git/
+.gitignore
+
