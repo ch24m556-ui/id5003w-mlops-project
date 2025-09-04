@@ -9,22 +9,33 @@ stages:
       - data/processed
       - data/baseline_sample
 
-  # --- NOTE: Drift detection is temporarily disabled for direct model experimentation. ---
-  
-  train:
+  validate_data:
+    cmd: python src/validate_data.py --new_data data/processed/train --baseline_sample data/baseline_sample --output_status_path drift_status.json
+    deps:
+      - src/validate_data.py
+      - data/processed/train
+      - data/baseline_sample
+    outs:
+      - drift_status.json:
+          cache: false
+
+  trigger_retraining:
     cmd: >-
-      python src/train.py 
+      python src/trigger_training.py 
       --train_data data/processed/train 
       --model_out model/spark_model 
       --profile ${experiment_profile}
     deps:
-      - data/processed
+      - data/processed/train
+      - src/trigger_training.py
       - src/train.py
+      - drift_status.json
       - params.yaml
     params:
       - experiment_profile
     outs:
-      - model/spark_model
+      - model/spark_model:
+          cache: false
     metrics:
       - metrics.json:
           cache: false

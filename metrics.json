@@ -1,4 +1,1 @@
-{
-    "accuracy": 0.7887323943661971,
-    "f1_score": 0.7847014245745835
-}
+{"status": "retraining_skipped", "reason": "no_drift"}

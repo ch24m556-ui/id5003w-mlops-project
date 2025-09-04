@@ -11,61 +11,130 @@ stages:
       size: 28629
     - path: data/raw/train.csv
       hash: md5
-      md5: 6b81cf2ebc5496e3a2940421f24506fe
-      size: 96190
+      md5: 961d29f65bb14d119c1bc2e4d1c95440
+      size: 197257
     - path: src/data_processing.py
       hash: md5
-      md5: 162f826d8287c13ec6e4c94602fbc9e7
-      size: 3686
+      md5: 44241a638adf88449a3db17ebd789ce0
+      size: 4868
     outs:
     - path: data/baseline_sample
       hash: md5
-      md5: af235ae20eb4f66391c2a41871ebb86a.dir
-      size: 5301
+      md5: f2829242c56bf6d8e83681a7d9a842d6.dir
+      size: 9902
       nfiles: 4
     - path: data/processed
       hash: md5
-      md5: 4cc809deb649f3cdc361035893e015ce.dir
-      size: 16307
-      nfiles: 8
-  train:
-    cmd: python src/train.py --train_data data/processed/train --model_out 
-      model/spark_model
-    deps:
-    - path: data/processed
-      hash: md5
-      md5: 4cc809deb649f3cdc361035893e015ce.dir
-      size: 16307
-      nfiles: 8
-    - path: src/train.py
-      hash: md5
-      md5: 42b5a6b71fb9814aebff124b5da8482c
-      size: 5072
-    outs:
-    - path: metrics.json
-      hash: md5
-      md5: e8aef79c8838a937cae3b18cf2cccf0f
-      size: 77
-    - path: model/spark_model
-      hash: md5
-      md5: ba3d6b40900a4dc001891f62ca4e4d06.dir
-      size: 12367
-      nfiles: 48
+      md5: 33fb1c845e5e80b3f3e181035cc88374.dir
+      size: 30967
+      nfiles: 10
   validate_data:
     cmd: python src/validate_data.py --new_data data/processed/train 
-      --baseline_sample data/baseline_sample
+      --baseline_sample data/baseline_sample --output_status_path 
+      drift_status.json
     deps:
     - path: data/baseline_sample
       hash: md5
-      md5: af235ae20eb4f66391c2a41871ebb86a.dir
-      size: 5301
+      md5: f2829242c56bf6d8e83681a7d9a842d6.dir
+      size: 9902
       nfiles: 4
     - path: data/processed/train
       hash: md5
-      md5: c803b7f43ea8a887c2c657a9025bb259.dir
-      size: 11160
+      md5: 9a2628fc87c2723fd7385a95b02f064d.dir
+      size: 22892
       nfiles: 4
     - path: src/validate_data.py
       hash: md5
-      md5: ab59b98ce28f722b5d713104b3bad8f5
-      size: 2058
+      md5: c3b203045b85c4848df0580f161338c3
+      size: 3983
+    outs:
+    - path: drift_status.json
+      hash: md5
+      md5: 4a757b08b3b6a4d3c2be02817f5c30e7
+      size: 33
+  train:
+    cmd: python src/train.py  --train_data data/processed/train  --model_out 
+      model/spark_model  --profile more_cores
+    deps:
+    - path: data/processed
+      hash: md5
+      md5: 5d05a5bc96b30fe3422b354b7e171316.dir
+      size: 23094
+      nfiles: 10
+    - path: params.yaml
+      hash: md5
+      md5: 2e2c92dcc42f4bab0b01dd92b25e261f
+      size: 722
+    - path: src/train.py
+      hash: md5
+      md5: 4acc642a8017443b18b0af0fbcbbb48a
+      size: 10668
+    params:
+      params.yaml:
+        experiment_profile: more_cores
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 2748d30b36a7f1b6a6fae5c3c3bb8eb5
+      size: 64
+    - path: model/spark_model
+      hash: md5
+      md5: 82dc1b6159ccd6557da9c71962a32675.dir
+      size: 13354
+      nfiles: 64
+  trigger_retraining:
+    cmd: python src/trigger_training.py  --train_data data/processed/train  
+      --model_out model/spark_model  --profile more_cores
+    deps:
+    - path: data/processed/train
+      hash: md5
+      md5: 9a2628fc87c2723fd7385a95b02f064d.dir
+      size: 22892
+      nfiles: 4
+    - path: drift_status.json
+      hash: md5
+      md5: 4a757b08b3b6a4d3c2be02817f5c30e7
+      size: 33
+    - path: params.yaml
+      hash: md5
+      md5: 2e2c92dcc42f4bab0b01dd92b25e261f
+      size: 722
+    - path: src/train.py
+      hash: md5
+      md5: 4acc642a8017443b18b0af0fbcbbb48a
+      size: 10668
+    - path: src/trigger_training.py
+      hash: md5
+      md5: 9624172f8697b500cb456dbb43b3c784
+      size: 2536
+    params:
+      params.yaml:
+        experiment_profile: more_cores
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 8a504bf0d9f8299245467e572f9e5c30
+      size: 54
+    - path: model/spark_model
+      hash: md5
+      md5: d751713988987e9331980363e24189ce.dir
+      size: 0
+      nfiles: 0
+  create_baseline:
+    cmd: python src/create_baseline.py --train_input data/raw/train.csv 
+      --baseline_output data/baseline_sample
+    deps:
+    - path: data/raw/train.csv
+      hash: md5
+      md5: 62ac5773446c60e491ca8f06093fc9b4
+      size: 134098
+    - path: src/create_baseline.py
+      hash: md5
+      md5: 75fad90fc211238d088578f68f224063
+      size: 1386
+    outs:
+    - path: data/baseline_sample
+      hash: md5
+      md5: c0498f2eb7d38eed40dc5f0a43cf75d8.dir
+      size: 22035
+      nfiles: 4

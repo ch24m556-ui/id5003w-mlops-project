@@ -1,30 +1,27 @@
-# Add a profile selector at the top
-experiment_profile: low_resource
-# Parameters for Spark experiments. We can define multiple configurations here.
+# params.yaml
+# This key defines the default experiment to run.
+experiment_profile: more_cores
 
+# Each block below defines a full set of Spark configurations for an experiment.
+# NOTE: The keys are now the full, official Spark property names.
 spark_configs:
   baseline:
-    driver_memory: 2g
-    executor_cores: 1
-    shuffle_partitions: 10
-
-  high_memory:
-    driver_memory: 4g
-    executor_cores: 1
-    shuffle_partitions: 10
-
-  more_cores:
-    driver_memory: 2g
-    executor_cores: 2
-    shuffle_partitions: 20
+    spark.driver.memory: 2g
+    spark.executor.cores: 1
+    spark.sql.shuffle.partitions: 10
 
   low_resource:
-    driver_memory: 1g
-    executor_cores: 1
-    shuffle_partitions: 5
+    spark.driver.memory: 1g
+    spark.executor.cores: 1
+    spark.sql.shuffle.partitions: 5
+
+  more_cores:
+    spark.driver.memory: 2g
+    spark.executor.cores: 2
+    spark.sql.shuffle.partitions: 20
 
   high_parallelism:
-    driver_memory: 4g
-    executor_cores: 4
-    shuffle_partitions: 100
+    spark.driver.memory: 4g
+    spark.executor.cores: 4
+    spark.sql.shuffle.partitions: 50
 
