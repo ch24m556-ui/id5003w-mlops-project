@@ -17,21 +17,34 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from mlflow.tracking import MlflowClient
 
-def main(train_data_path, model_output_path):
+def main(train_data_path, model_output_path, spark_configs):
     """
-    Main function to train and tune multiple classification models, track experiments
-    with MLflow, and register the best-performing model.
+    Main function to train models with parameterized Spark configurations.
     """
-    spark = SparkSession.builder.appName("SparkMLlibMultiModelTuning").getOrCreate()
+    # --- Build Spark Session with dynamic configurations ---
+    spark_builder = SparkSession.builder.appName("SparkMLlibTuning")
+    
+    # Apply configurations passed from the command line
+    for key, value in spark_configs.items():
+        spark_builder.config(key, value)
+        
+    spark = spark_builder.getOrCreate()
+    print(f"✅ Spark Session initialized with custom configuration: {spark_configs}")
 
     mlflow.set_tracking_uri("./mlruns")
 
-    with mlflow.start_run(run_name="Model Comparison and Tuning") as parent_run:
+    with mlflow.start_run(run_name="Model Comparison with Spark Tuning") as parent_run:
+        # --- Log Spark configuration parameters to MLflow ---
+        print("   - Logging Spark configuration to MLflow.")
+        for key, value in spark_configs.items():
+            mlflow.log_param(key, value)
+
         print("🚀 MLflow Parent Run Started for Model Comparison and Tuning.")
         df = spark.read.parquet(train_data_path)
         (training_data, test_data) = df.randomSplit([0.8, 0.2], seed=42)
         print("   - Data loaded and split for training and validation.")
 
+        # --- Feature Engineering Pipeline (unchanged) ---
         categorical_cols = ['Sex', 'Embarked']
         numerical_cols = ['Pclass', 'Age', 'SibSp', 'Parch', 'Fare']
         feature_stages = []
@@ -46,6 +59,7 @@ def main(train_data_path, model_output_path):
         feature_stages.append(assembler)
         print("   - Feature engineering pipeline defined.")
 
+        # --- Model Definitions and Tuning (unchanged) ---
         dt = DecisionTreeClassifier(labelCol="Survived", featuresCol="features")
         rf = RandomForestClassifier(labelCol="Survived", featuresCol="features")
         lr = LogisticRegression(labelCol="Survived", featuresCol="features")
@@ -61,7 +75,6 @@ def main(train_data_path, model_output_path):
         ]
 
         evaluator = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="f1")
-
         best_overall_model = None
         best_f1_score = -1.0
         
@@ -69,7 +82,6 @@ def main(train_data_path, model_output_path):
         for model_name, classifier, param_grid in models_to_tune:
             with mlflow.start_run(run_name=f"Tuning_{model_name}", nested=True) as child_run:
                 print(f"\n   Tuning {model_name}...")
-                
                 pipeline = Pipeline(stages=feature_stages + [classifier])
                 cv = CrossValidator(estimator=pipeline, estimatorParamMaps=param_grid, evaluator=evaluator, numFolds=3, parallelism=2)
                 cv_model = cv.fit(training_data)
@@ -124,9 +136,22 @@ def main(train_data_path, model_output_path):
     spark.stop()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Tune and train multiple distributed models with Spark MLlib")
-    parser.add_argument("--train_data", required=True, help="Path to processed train data (Parquet format)")
-    parser.add_argument("--model_out", required=True, help="Path to save the final best model artifact")
+    parser = argparse.ArgumentParser(description="Tune and train models with different Spark configs")
+    parser.add_argument("--train_data", required=True)
+    parser.add_argument("--model_out", required=True)
+    # New arguments for Spark configuration
+    parser.add_argument("--spark_driver_memory", required=True)
+    parser.add_argument("--spark_executor_cores", required=True, type=int)
+    parser.add_argument("--spark_shuffle_partitions", required=True, type=int)
+    
     args = parser.parse_args()
-    main(args.train_data, args.model_out)
+
+    # Group Spark configs into a dictionary to pass to the main function
+    spark_configurations = {
+        "spark.driver.memory": args.spark_driver_memory,
+        "spark.executor.cores": args.spark_executor_cores,
+        "spark.sql.shuffle.partitions": args.spark_shuffle_partitions
+    }
+
+    main(args.train_data, args.model_out, spark_configurations)
 
