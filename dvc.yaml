@@ -10,23 +10,19 @@ stages:
       - data/baseline_sample
 
   # --- NOTE: Drift detection is temporarily disabled for direct model experimentation. ---
-  # ---       To restore the full automated pipeline, comment out the 'train'     ---
-  # ---       stage below and uncomment 'validate_data' and 'trigger_retraining'. ---
-
+  
   train:
     cmd: >-
       python src/train.py 
       --train_data data/processed/train 
       --model_out model/spark_model 
-      --spark_driver_memory ${spark_configs[${experiment_profile}].driver_memory} 
-      --spark_executor_cores ${spark_configs[${experiment_profile}].executor_cores} 
-      --spark_shuffle_partitions ${spark_configs[${experiment_profile}].shuffle_partitions}
+      --profile ${experiment_profile}
     deps:
       - data/processed
       - src/train.py
+      - params.yaml
     params:
       - experiment_profile
-      - spark_configs
     outs:
       - model/spark_model
     metrics:
