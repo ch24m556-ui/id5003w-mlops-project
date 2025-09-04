@@ -34,21 +34,37 @@ from pyspark.mllib.evaluation import MulticlassMetrics
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from mlflow.tracking import MlflowClient
 
-def log_feature_importance(spark_model, features, artifact_path="feature_importance.png"):
-    """Extracts and logs a feature importance plot for tree-based models."""
+def log_feature_importance(spark_model, predictions, artifact_path="feature_importance.png"):
+    """
+    Extracts feature names and their importance scores from a fitted Spark ML Pipeline model,
+    then logs a feature importance plot as an MLflow artifact.
+    """
     if not isinstance(spark_model.stages[-1], (DecisionTreeClassificationModel, RandomForestClassificationModel)):
         print("   - Skipping feature importance: model is not a tree-based type.")
         return
+
+    # --- THIS IS THE FIX ---
+    # Extract the true, expanded feature names from the model's metadata.
+    assembler = spark_model.stages[-2]
+    feature_metadata = predictions.schema[assembler.getOutputCol()].metadata["ml_attr"]["attrs"]
+    
+    # The metadata is a nested dictionary. We need to iterate through numeric and binary attributes.
+    feature_names = []
+    if 'numeric' in feature_metadata:
+        feature_names.extend([attr['name'] for attr in feature_metadata['numeric']])
+    if 'binary' in feature_metadata:
+        feature_names.extend([attr['name'] for attr in feature_metadata['binary']])
+    # --- End of FIX ---
 
     model = spark_model.stages[-1]
     importances = model.featureImportances.toArray()
     
     feature_importance_df = pd.DataFrame({
-        'feature': features,
+        'feature': feature_names,
         'importance': importances
     }).sort_values('importance', ascending=False)
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 8))
     sns.barplot(x='importance', y='feature', data=feature_importance_df)
     plt.title('Feature Importance')
     plt.tight_layout()
@@ -173,7 +189,8 @@ def main(train_data_path, model_output_path, spark_configs):
         
         # --- Log Artifacts ---
         log_confusion_matrix(predictions)
-        log_feature_importance(best_overall_model, feature_cols)
+        # Pass `predictions` to get access to the schema metadata for feature names
+        log_feature_importance(best_overall_model, predictions)
         
         with open("best_params.json", "w") as f:
             json.dump(best_param_map, f, indent=4)
