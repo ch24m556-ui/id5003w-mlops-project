@@ -76,7 +76,7 @@ def main(train_input, test_input, output_path, baseline_sample_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess and engineer features for Titanic Data with Spark")
     parser.add_argument("--train_input", required=True, help="Path to raw train.csv")
-    parser.add_-argument("--test_input", required=True, help="Path to raw test.csv")
+    parser.add_argument("--test_input", required=True, help="Path to raw test.csv")
     parser.add_argument("--output_path", required=True, help="Path to save processed data")
     parser.add_argument("--baseline_sample_path", required=True, help="Path to save baseline sample for drift detection")
     args = parser.parse_args()
