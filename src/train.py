@@ -39,7 +39,6 @@ def log_feature_importance(spark_model, predictions, artifact_path="feature_impo
         print("   - Skipping feature importance: model is not a tree-based type.")
         return
     
-    # Extract feature names directly from the fitted VectorAssembler stage metadata
     assembler_stage = next(s for s in spark_model.stages if isinstance(s, VectorAssembler))
     feature_attrs = predictions.schema[assembler_stage.getOutputCol()].metadata["ml_attr"]["attrs"]
     feature_names = []
@@ -51,7 +50,6 @@ def log_feature_importance(spark_model, predictions, artifact_path="feature_impo
     model = spark_model.stages[-1]
     importances = model.featureImportances.toArray()
 
-    # Ensure lengths match before creating DataFrame
     if len(feature_names) != len(importances):
         print(f"   - ⚠️ Warning: Mismatch between feature names ({len(feature_names)}) and importances ({len(importances)}). Skipping plot.")
         return
@@ -94,7 +92,15 @@ def main(train_data_path, model_output_path, profile_name):
         params = yaml.safe_load(f)
     spark_configs = params["spark_configs"][profile_name]
 
-    spark = SparkSession.builder.appName("SimplifiedSparkMLTraining").config(**spark_configs).getOrCreate()
+    # --- THIS IS THE FIX ---
+    # We initialize the builder and then iterate through the config dictionary
+    # to apply each setting correctly.
+    spark_builder = SparkSession.builder.appName("SimplifiedSparkMLTraining")
+    for key, value in spark_configs.items():
+        spark_builder = spark_builder.config(key, value)
+    spark = spark_builder.getOrCreate()
+    # --- End of FIX ---
+
     print(f"✅ Spark Session initialized with '{profile_name}' profile: {spark_configs}")
 
     mlflow.set_tracking_uri("./mlruns")
@@ -107,30 +113,18 @@ def main(train_data_path, model_output_path, profile_name):
         (training_data, test_data) = df.randomSplit([0.8, 0.2], seed=42)
         print("   - Pre-processed data loaded and split for training and validation.")
 
-        # --- Define the Simplified ML Pipeline ---
-        # The data is already feature-engineered. We just need to encode and assemble.
+        # Define the Simplified ML Pipeline
         print("\n--- Defining Simplified Modeling Pipeline ---")
-
-        # 1. Handle categorical columns created during preprocessing
         categorical_cols = ['Sex', 'Embarked', 'Title']
         string_indexers = [StringIndexer(inputCol=c, outputCol=f"{c}_index", handleInvalid="keep") for c in categorical_cols]
         one_hot_encoders = [OneHotEncoder(inputCol=f"{c}_index", outputCol=f"{c}_vec") for c in categorical_cols]
-
-        # 2. Assemble all pre-engineered and newly encoded features into a single vector
-        # Note: We now use the feature-engineered columns directly
         feature_cols = ['Pclass', 'Age_imputed', 'SibSp', 'Parch', 'Fare', 'IsAlone', 'FamilySize'] + [f"{c}_vec" for c in categorical_cols]
         vector_assembler = VectorAssembler(inputCols=feature_cols, outputCol="features", handleInvalid="skip")
-        
-        # The pipeline stages now only contain the final modeling steps
-        modeling_stages = [
-            *string_indexers,
-            *one_hot_encoders,
-            vector_assembler
-        ]
+        modeling_stages = [*string_indexers, *one_hot_encoders, vector_assembler]
         
         print("   - Pipeline stages defined for final encoding and vector assembly.")
 
-        # --- Define Models and Hyperparameter Grids (No Change) ---
+        # Define Models and Hyperparameter Grids
         dt = DecisionTreeClassifier(labelCol="Survived", featuresCol="features")
         rf = RandomForestClassifier(labelCol="Survived", featuresCol="features")
         lr = LogisticRegression(labelCol="Survived", featuresCol="features")
@@ -148,9 +142,7 @@ def main(train_data_path, model_output_path, profile_name):
             ("LogisticRegression", lr, lr_param_grid)
         ]
         
-        best_overall_model = None
-        best_f1_score = -1.0
-        best_param_map = None
+        best_overall_model, best_f1_score, best_param_map = None, -1.0, None
 
         print("\n--- Starting Hyperparameter Tuning ---")
         for model_name, classifier, param_grid in models_to_tune:
@@ -165,7 +157,7 @@ def main(train_data_path, model_output_path, profile_name):
                     best_overall_model = cv_model.bestModel
                     best_param_map_raw = cv_model.getEstimatorParamMaps()[cv_model.avgMetrics.index(best_cv_f1_score)]
                     best_param_map = {p.name.split('_')[-1]: v for p, v in best_param_map_raw.items()}
-                    print(f"   - ✨ New best model: {model_name} (F1: {best_f1_score:.4f})")
+                    print(f"   - ✨ New best model: {model_name} (CV F1: {best_f1_score:.4f})")
         
         print("\n--- Evaluating Best Overall Model ---")
         predictions = best_overall_model.transform(test_data)
@@ -177,7 +169,7 @@ def main(train_data_path, model_output_path, profile_name):
         mlflow.log_metrics({"accuracy": accuracy, "f1_score": f1_final, "precision": precision, "recall": recall, "auc": auc})
         print(f"   - Final Metrics: Accuracy={accuracy:.4f}, F1={f1_final:.4f}")
 
-        # --- Artifact Logging and Model Registry (No Change) ---
+        # Artifact Logging and Model Registry
         with open("metrics.json", "w") as f: json.dump({"accuracy": accuracy, "f1_score": f1_final}, f)
         mlflow.log_artifact("metrics.json")
         log_confusion_matrix(predictions)
