@@ -1,3 +1,5 @@
+# Add a profile selector at the top
+experiment_profile: baseline
 # Parameters for Spark experiments. We can define multiple configurations here.
 
 spark_configs:
