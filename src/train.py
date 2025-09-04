@@ -10,15 +10,14 @@ os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
 import argparse
 import mlflow
 import json
-import yaml  # New import for reading params.yaml
+import yaml
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, regexp_extract, avg
-from pyspark.ml import Pipeline, Transformer
-from pyspark.ml.param.shared import HasInputCol, HasOutputCol
+from pyspark.sql.functions import col
+from pyspark.ml import Pipeline
 from pyspark.ml.feature import VectorAssembler, StringIndexer, OneHotEncoder
 from pyspark.ml.classification import (
     DecisionTreeClassifier,
@@ -33,27 +32,55 @@ from pyspark.mllib.evaluation import MulticlassMetrics
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from mlflow.tracking import MlflowClient
 
-# --- Helper Functions for Artifacts (No Changes) ---
+# --- Helper Functions for Artifacts ---
 def log_feature_importance(spark_model, predictions, artifact_path="feature_importance.png"):
+    """Extracts and logs a feature importance plot for tree-based models."""
     if not isinstance(spark_model.stages[-1], (DecisionTreeClassificationModel, RandomForestClassificationModel)):
         print("   - Skipping feature importance: model is not a tree-based type.")
         return
-    feature_attrs = predictions.schema[spark_model.stages[-2].getOutputCol()].metadata["ml_attr"]["attrs"]
+    
+    # Extract feature names directly from the fitted VectorAssembler stage metadata
+    assembler_stage = next(s for s in spark_model.stages if isinstance(s, VectorAssembler))
+    feature_attrs = predictions.schema[assembler_stage.getOutputCol()].metadata["ml_attr"]["attrs"]
     feature_names = []
-    for key in feature_attrs:
-        feature_names.extend(feature_attrs[key])
+    if "numeric" in feature_attrs:
+        feature_names.extend([attr["name"] for attr in feature_attrs["numeric"]])
+    if "binary" in feature_attrs:
+        feature_names.extend([attr["name"] for attr in feature_attrs["binary"]])
+
     model = spark_model.stages[-1]
     importances = model.featureImportances.toArray()
-    feature_importance_df = pd.DataFrame({'feature': feature_names, 'importance': importances}).sort_values('importance', ascending=False)
-    plt.figure(figsize=(12, 8)); sns.barplot(x='importance', y='feature', data=feature_importance_df); plt.title('Feature Importance'); plt.tight_layout(); plt.savefig(artifact_path); plt.close()
+
+    # Ensure lengths match before creating DataFrame
+    if len(feature_names) != len(importances):
+        print(f"   - ⚠️ Warning: Mismatch between feature names ({len(feature_names)}) and importances ({len(importances)}). Skipping plot.")
+        return
+
+    feature_importance_df = pd.DataFrame({
+        'feature': feature_names,
+        'importance': importances
+    }).sort_values('importance', ascending=False)
+
+    plt.figure(figsize=(12, 8))
+    sns.barplot(x='importance', y='feature', data=feature_importance_df)
+    plt.title('Feature Importance')
+    plt.tight_layout()
+    plt.savefig(artifact_path)
+    plt.close()
     mlflow.log_artifact(artifact_path)
     print(f"   - ✅ Logged feature importance plot to {artifact_path}")
 
 def log_confusion_matrix(predictions, artifact_path="confusion_matrix.png"):
+    """Generates and logs a confusion matrix plot."""
     preds_and_labels = predictions.select(['prediction', 'Survived']).withColumn('label', col('Survived').cast('float')).select(['prediction', 'label']).rdd.map(tuple)
     metrics = MulticlassMetrics(preds_and_labels)
     confusion_matrix = metrics.confusionMatrix().toArray()
-    plt.figure(figsize=(8, 6)); sns.heatmap(confusion_matrix, annot=True, fmt='.0f', cmap='Blues', xticklabels=['Predicted 0', 'Predicted 1'], yticklabels=['Actual 0', 'Actual 1']); plt.title('Confusion Matrix'); plt.ylabel('Actual Class'); plt.xlabel('Predicted Class'); plt.savefig(artifact_path); plt.close()
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(confusion_matrix, annot=True, fmt='.0f', cmap='Blues', xticklabels=['Predicted 0', 'Predicted 1'], yticklabels=['Actual 0', 'Actual 1'])
+    plt.title('Confusion Matrix'); plt.ylabel('Actual Class'); plt.xlabel('Predicted Class')
+    plt.savefig(artifact_path)
+    plt.close()
     mlflow.log_artifact(artifact_path)
     print(f"   - ✅ Logged confusion matrix plot to {artifact_path}")
 
@@ -61,15 +88,13 @@ def log_confusion_matrix(predictions, artifact_path="confusion_matrix.png"):
 # --- Main Training Logic ---
 def main(train_data_path, model_output_path, profile_name):
     """
-    Main function to preprocess, engineer features, and train models.
+    Main function to train models on pre-processed, feature-engineered data.
     """
-    # --- New Logic: Read Spark configs from params.yaml ---
     with open("params.yaml", "r") as f:
         params = yaml.safe_load(f)
     spark_configs = params["spark_configs"][profile_name]
-    # --- End of New Logic ---
 
-    spark = SparkSession.builder.appName("AdvancedSparkMLTraining").config(**spark_configs).getOrCreate()
+    spark = SparkSession.builder.appName("SimplifiedSparkMLTraining").config(**spark_configs).getOrCreate()
     print(f"✅ Spark Session initialized with '{profile_name}' profile: {spark_configs}")
 
     mlflow.set_tracking_uri("./mlruns")
@@ -80,29 +105,48 @@ def main(train_data_path, model_output_path, profile_name):
 
         df = spark.read.parquet(train_data_path)
         (training_data, test_data) = df.randomSplit([0.8, 0.2], seed=42)
-        
-        # --- Feature Engineering Pipeline (No Changes) ---
-        title_extractor = RegexTransformer(inputCol="Name", outputCol="Title", pattern=" ([A-Za-z]+)\\.")
-        age_imputer = AgeImputer(inputCol="Age", outputCol="Age_imputed", titleCol="Title")
-        family_size_creator = FamilySizeCreator(outputCol="FamilySize")
-        is_alone_creator = IsAloneCreator(inputCol="FamilySize", outputCol="IsAlone")
+        print("   - Pre-processed data loaded and split for training and validation.")
+
+        # --- Define the Simplified ML Pipeline ---
+        # The data is already feature-engineered. We just need to encode and assemble.
+        print("\n--- Defining Simplified Modeling Pipeline ---")
+
+        # 1. Handle categorical columns created during preprocessing
         categorical_cols = ['Sex', 'Embarked', 'Title']
         string_indexers = [StringIndexer(inputCol=c, outputCol=f"{c}_index", handleInvalid="keep") for c in categorical_cols]
         one_hot_encoders = [OneHotEncoder(inputCol=f"{c}_index", outputCol=f"{c}_vec") for c in categorical_cols]
-        feature_cols = ['Pclass', 'Age_imputed', 'SibSp', 'Parch', 'Fare', 'IsAlone'] + [f"{c}_vec" for c in categorical_cols]
-        vector_assembler = VectorAssembler(inputCols=feature_cols, outputCol="features", handleInvalid="skip")
-        feature_engineering_stages = [title_extractor, age_imputer, family_size_creator, is_alone_creator, *string_indexers, *one_hot_encoders, vector_assembler]
 
-        # --- Model Definitions (No Changes) ---
+        # 2. Assemble all pre-engineered and newly encoded features into a single vector
+        # Note: We now use the feature-engineered columns directly
+        feature_cols = ['Pclass', 'Age_imputed', 'SibSp', 'Parch', 'Fare', 'IsAlone', 'FamilySize'] + [f"{c}_vec" for c in categorical_cols]
+        vector_assembler = VectorAssembler(inputCols=feature_cols, outputCol="features", handleInvalid="skip")
+        
+        # The pipeline stages now only contain the final modeling steps
+        modeling_stages = [
+            *string_indexers,
+            *one_hot_encoders,
+            vector_assembler
+        ]
+        
+        print("   - Pipeline stages defined for final encoding and vector assembly.")
+
+        # --- Define Models and Hyperparameter Grids (No Change) ---
         dt = DecisionTreeClassifier(labelCol="Survived", featuresCol="features")
         rf = RandomForestClassifier(labelCol="Survived", featuresCol="features")
         lr = LogisticRegression(labelCol="Survived", featuresCol="features")
         gbt = GBTClassifier(labelCol="Survived", featuresCol="features")
+
         dt_param_grid = ParamGridBuilder().addGrid(dt.maxDepth, [5, 7, 10]).build()
         rf_param_grid = ParamGridBuilder().addGrid(rf.numTrees, [20, 50]).addGrid(rf.maxDepth, [5, 7, 10]).build()
         lr_param_grid = ParamGridBuilder().addGrid(lr.regParam, [0.01, 0.1]).build()
         gbt_param_grid = ParamGridBuilder().addGrid(gbt.maxDepth, [3, 5]).addGrid(gbt.maxIter, [10, 20]).build()
-        models_to_tune = [("GBTClassifier", gbt, gbt_param_grid), ("RandomForest", rf, rf_param_grid), ("DecisionTree", dt, dt_param_grid), ("LogisticRegression", lr, lr_param_grid)]
+            
+        models_to_tune = [
+            ("GBTClassifier", gbt, gbt_param_grid),
+            ("RandomForest", rf, rf_param_grid),
+            ("DecisionTree", dt, dt_param_grid),
+            ("LogisticRegression", lr, lr_param_grid)
+        ]
         
         best_overall_model = None
         best_f1_score = -1.0
@@ -111,7 +155,7 @@ def main(train_data_path, model_output_path, profile_name):
         print("\n--- Starting Hyperparameter Tuning ---")
         for model_name, classifier, param_grid in models_to_tune:
             with mlflow.start_run(run_name=f"Tuning_{model_name}", nested=True):
-                full_pipeline = Pipeline(stages=feature_engineering_stages + [classifier])
+                full_pipeline = Pipeline(stages=modeling_stages + [classifier])
                 evaluator = MulticlassClassificationEvaluator(labelCol="Survived", predictionCol="prediction", metricName="f1")
                 cv = CrossValidator(estimator=full_pipeline, estimatorParamMaps=param_grid, evaluator=evaluator, numFolds=3)
                 cv_model = cv.fit(training_data)
@@ -133,7 +177,7 @@ def main(train_data_path, model_output_path, profile_name):
         mlflow.log_metrics({"accuracy": accuracy, "f1_score": f1_final, "precision": precision, "recall": recall, "auc": auc})
         print(f"   - Final Metrics: Accuracy={accuracy:.4f}, F1={f1_final:.4f}")
 
-        # --- Artifact Logging and Model Registry (No Changes) ---
+        # --- Artifact Logging and Model Registry (No Change) ---
         with open("metrics.json", "w") as f: json.dump({"accuracy": accuracy, "f1_score": f1_final}, f)
         mlflow.log_artifact("metrics.json")
         log_confusion_matrix(predictions)
@@ -150,28 +194,10 @@ def main(train_data_path, model_output_path, profile_name):
 
     spark.stop()
 
-# --- Custom Spark ML Transformers (No Changes) ---
-class RegexTransformer(Transformer, HasInputCol, HasOutputCol):
-    def __init__(self, inputCol=None, outputCol=None, pattern=None): super().__init__(); self.inputCol=inputCol; self.outputCol=outputCol; self.pattern=pattern
-    def _transform(self, df): return df.withColumn(self.getOutputCol(), regexp_extract(col(self.getInputCol()), self.pattern, 1))
-class AgeImputer(Transformer, HasInputCol, HasOutputCol):
-    def __init__(self, inputCol=None, outputCol=None, titleCol=None): super().__init__(); self.inputCol=inputCol; self.outputCol=outputCol; self.titleCol=titleCol
-    def _transform(self, df):
-        title_ages = df.groupBy(self.titleCol).agg(avg(self.inputCol).alias("mean_age"))
-        df_with_mean_age = df.join(title_ages, on=self.titleCol, how="left")
-        return df_with_mean_age.withColumn(self.getOutputCol(), when(col(self.inputCol).isNull(), col("mean_age")).otherwise(col(self.inputCol))).drop("mean_age")
-class FamilySizeCreator(Transformer, HasOutputCol):
-    def __init__(self, outputCol=None): super().__init__(); self.outputCol=outputCol
-    def _transform(self, df): return df.withColumn(self.getOutputCol(), col("SibSp") + col("Parch") + 1)
-class IsAloneCreator(Transformer, HasInputCol, HasOutputCol):
-    def __init__(self, inputCol=None, outputCol=None): super().__init__(); self.inputCol=inputCol; self.outputCol=outputCol
-    def _transform(self, df): return df.withColumn(self.getOutputCol(), when(col(self.getInputCol()) == 1, 1).otherwise(0))
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Advanced model training with Spark")
+    parser = argparse.ArgumentParser(description="Model training on pre-engineered data")
     parser.add_argument("--train_data", required=True)
     parser.add_argument("--model_out", required=True)
-    # --- New Argument ---
     parser.add_argument("--profile", required=True, help="The experiment profile from params.yaml to use.")
     args = parser.parse_args()
     main(args.train_data, args.model_out, args.profile)
