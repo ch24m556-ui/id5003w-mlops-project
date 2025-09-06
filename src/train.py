@@ -51,7 +51,7 @@ def log_feature_importance(spark_model, predictions, artifact_path="feature_impo
     importances = model.featureImportances.toArray()
 
     if len(feature_names) != len(importances):
-        print(f"   - ⚠️ Warning: Mismatch between feature names ({len(feature_names)}) and importances ({len(importances)}). Skipping plot.")
+        print(f"   -  Warning: Mismatch between feature names ({len(feature_names)}) and importances ({len(importances)}). Skipping plot.")
         return
 
     feature_importance_df = pd.DataFrame({
@@ -66,7 +66,7 @@ def log_feature_importance(spark_model, predictions, artifact_path="feature_impo
     plt.savefig(artifact_path)
     plt.close()
     mlflow.log_artifact(artifact_path)
-    print(f"   - ✅ Logged feature importance plot to {artifact_path}")
+    print(f"   -  Logged feature importance plot to {artifact_path}")
 
 def log_confusion_matrix(predictions, artifact_path="confusion_matrix.png"):
     """Generates and logs a confusion matrix plot."""
@@ -80,7 +80,7 @@ def log_confusion_matrix(predictions, artifact_path="confusion_matrix.png"):
     plt.savefig(artifact_path)
     plt.close()
     mlflow.log_artifact(artifact_path)
-    print(f"   - ✅ Logged confusion matrix plot to {artifact_path}")
+    print(f"   -  Logged confusion matrix plot to {artifact_path}")
 
 
 # --- Main Training Logic ---
@@ -101,13 +101,13 @@ def main(train_data_path, model_output_path, profile_name):
     spark = spark_builder.getOrCreate()
     # --- End of FIX ---
 
-    print(f"✅ Spark Session initialized with '{profile_name}' profile: {spark_configs}")
+    print(f" Spark Session initialized with '{profile_name}' profile: {spark_configs}")
 
     mlflow.set_tracking_uri("./mlruns")
     with mlflow.start_run(run_name=f"Training with {profile_name} profile") as parent_run:
         mlflow.log_params(spark_configs)
         mlflow.log_param("experiment_profile", profile_name)
-        print(f"🚀 MLflow Run Started for profile: {profile_name}.")
+        print(f" MLflow Run Started for profile: {profile_name}.")
 
         df = spark.read.parquet(train_data_path)
         (training_data, test_data) = df.randomSplit([0.8, 0.2], seed=42)
@@ -182,7 +182,7 @@ def main(train_data_path, model_output_path, profile_name):
         client = MlflowClient()
         latest_version = client.get_latest_versions(model_name_registered, stages=["None"])[0].version
         client.transition_model_version_stage(name=model_name_registered, version=latest_version, stage="Staging", archive_existing_versions=True)
-        print(f"   - ✅ Model registered as version {latest_version} and moved to 'Staging'.")
+        print(f"   -  Model registered as version {latest_version} and moved to 'Staging'.")
 
     spark.stop()
 
