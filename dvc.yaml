@@ -19,7 +19,7 @@ stages:
       - drift_status.json:
           cache: false
 
-  trigger_retraining:
+  trigger_training:
     cmd: >-
       python src/trigger_training.py 
       --train_data data/processed/train 

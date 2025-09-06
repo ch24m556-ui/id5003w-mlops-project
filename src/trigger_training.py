@@ -7,61 +7,54 @@ import shutil
 
 def main():
     """
-    Reads the drift status and decides whether to run the main training script
-    or to skip it and create placeholder artifacts.
+    Reads the drift status and model existence, and decides whether to run 
+    the main training script or to skip it.
     """
-    # --- Read the drift status ---
+    # --- 1. Get the declared model output path from arguments ---
+    try:
+        model_out_index = sys.argv.index("--model_out") + 1
+        model_out_path = sys.argv[model_out_index]
+    except (ValueError, IndexError):
+        print("❌ ERROR: Could not find --model_out argument. This is required.")
+        sys.exit(1)
+
+    # --- 2. Read the drift status ---
     try:
         with open("drift_status.json", "r") as f:
             status = json.load(f)
+        drift_detected = status.get("drift_detected", False)
     except FileNotFoundError:
-        print("ERROR: drift_status.json not found. Did the validation stage run?")
+        print("❌ ERROR: drift_status.json not found. Did the validation stage run?")
         sys.exit(1)
 
-    if status.get("drift_detected", False):
-        print("(OK) Data drift detected. Proceeding with model retraining.")
-        
-        # --- Trigger the main training script ---
-        # This script re-uses the command-line arguments it received from DVC
-        # but calls train.py instead of itself.
-        
+    # --- 3. Check if the model artifact already exists and is not empty ---
+    model_exists = os.path.exists(model_out_path) and len(os.listdir(model_out_path)) > 0
+    
+    # --- 4. Decide whether to trigger training ---
+    # Trigger training if drift is detected OR if the model doesn't exist yet.
+    if drift_detected or not model_exists:
+        if drift_detected:
+            print("✅ TRIGGER: Data drift detected. Proceeding with model retraining.")
+        if not model_exists:
+            print("✅ TRIGGER: Model artifact is missing or empty. Proceeding with initial training.")
+
         # Construct the command to call train.py, passing along all original arguments
-        command = [
-            "python", "src/train.py"
-        ] + sys.argv[1:] 
+        command = ["python", "src/train.py"] + sys.argv[1:] 
 
         try:
             subprocess.run(command, check=True)
-            print("(OK) Model training script executed successfully.")
+            print("   - (OK) Model training script executed successfully.")
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: Model training script failed with exit code {e.returncode}.")
+            print(f"   - ❌ ERROR: Model training script failed with exit code {e.returncode}.")
             sys.exit(1)
 
     else:
-        print("(OK) No data drift detected. Skipping model retraining to save resources.")
+        print("✅ SKIP: No data drift detected and a valid model already exists.")
+        print("   - Skipping model retraining to save resources.")
         
-        # --- Create placeholder artifacts so DVC doesn't complain ---
-        # DVC requires that all declared outputs exist after a stage runs.
-        print("   - Creating placeholder artifacts for DVC.")
-        
-        # Find the model output path from the arguments
-        # Arguments are passed like: --model_out, path/to/model
-        try:
-            model_out_index = sys.argv.index("--model_out") + 1
-            model_out_path = sys.argv[model_out_index]
-            
-            # Create an empty directory for the model artifact
-            if os.path.exists(model_out_path):
-                shutil.rmtree(model_out_path)
-            os.makedirs(model_out_path, exist_ok=True)
-
-            # Create a dummy metrics file
-            with open("metrics.json", "w") as f:
-                json.dump({"status": "retraining_skipped", "reason": "no_drift"}, f)
-
-        except (ValueError, IndexError):
-            print("   - WARNING: Could not find --model_out argument. Cannot create placeholder artifacts.")
+        # DVC requires outputs exist, so we ensure they are not removed.
+        # No need to create placeholders if the model already exists.
+        print("   - Existing artifacts are preserved.")
 
 if __name__ == "__main__":
     main()
-

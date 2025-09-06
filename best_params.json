@@ -1,3 +1,4 @@
 {
-    "regParam": 0.01
+    "maxDepth": 3,
+    "maxIter": 20
 }
