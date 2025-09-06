@@ -169,10 +169,10 @@ stages:
     outs:
     - path: metrics.json
       hash: md5
-      md5: 0a128410cbffec41fc0726121b7c37c5
+      md5: 898cf449a5f403c84190e0bd6a4e7fe0
       size: 64
     - path: model/spark_model
       hash: md5
-      md5: d2886365ef8d489e57c1a8ba3bfe390b.dir
-      size: 34424
-      nfiles: 68
+      md5: 7a686040d4f77d81e77987b7600defd5.dir
+      size: 16859
+      nfiles: 64
