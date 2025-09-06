@@ -1,6 +1,6 @@
 # params.yaml
 # This key defines the default experiment to run.
-experiment_profile: more_cores
+experiment_profile: baseline
 
 # Each block below defines a full set of Spark configurations for an experiment.
 # NOTE: The keys are now the full, official Spark property names.

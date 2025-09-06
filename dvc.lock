@@ -20,12 +20,12 @@ stages:
     outs:
     - path: data/baseline_sample
       hash: md5
-      md5: f2829242c56bf6d8e83681a7d9a842d6.dir
+      md5: 979dda7a2a63b640bec585b84caca99f.dir
       size: 9902
       nfiles: 4
     - path: data/processed
       hash: md5
-      md5: 33fb1c845e5e80b3f3e181035cc88374.dir
+      md5: 39e2cd41d56c832e755b0de2a5e0aa05.dir
       size: 30967
       nfiles: 10
   validate_data:
@@ -35,12 +35,12 @@ stages:
     deps:
     - path: data/baseline_sample
       hash: md5
-      md5: f2829242c56bf6d8e83681a7d9a842d6.dir
+      md5: 979dda7a2a63b640bec585b84caca99f.dir
       size: 9902
       nfiles: 4
     - path: data/processed/train
       hash: md5
-      md5: 9a2628fc87c2723fd7385a95b02f064d.dir
+      md5: 2312e4bf754f7b8ea8ed08b3800107dd.dir
       size: 22892
       nfiles: 4
     - path: src/validate_data.py
@@ -84,11 +84,11 @@ stages:
       nfiles: 64
   trigger_retraining:
     cmd: python src/trigger_training.py  --train_data data/processed/train  
-      --model_out model/spark_model  --profile more_cores
+      --model_out model/spark_model  --profile baseline
     deps:
     - path: data/processed/train
       hash: md5
-      md5: 9a2628fc87c2723fd7385a95b02f064d.dir
+      md5: 2312e4bf754f7b8ea8ed08b3800107dd.dir
       size: 22892
       nfiles: 4
     - path: drift_status.json
@@ -97,8 +97,8 @@ stages:
       size: 33
     - path: params.yaml
       hash: md5
-      md5: 2e2c92dcc42f4bab0b01dd92b25e261f
-      size: 722
+      md5: 8ea6183545059035720705720c90b7cc
+      size: 720
     - path: src/train.py
       hash: md5
       md5: 4acc642a8017443b18b0af0fbcbbb48a
@@ -109,7 +109,7 @@ stages:
       size: 2536
     params:
       params.yaml:
-        experiment_profile: more_cores
+        experiment_profile: baseline
     outs:
     - path: metrics.json
       hash: md5
