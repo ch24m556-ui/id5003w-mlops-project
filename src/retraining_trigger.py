@@ -57,7 +57,7 @@ def main():
             capture_output=True
         )
         
-        print("\n--- ✅ DVC Pipeline Executed Successfully ---")
+        print("\n---  DVC Pipeline Executed Successfully ---")
         
         # --- 5. Check the output to see what the pipeline did ---
         if "Skipping model retraining" in result.stdout:

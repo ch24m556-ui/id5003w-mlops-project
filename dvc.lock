@@ -11,8 +11,8 @@ stages:
       size: 28629
     - path: data/raw/train.csv
       hash: md5
-      md5: 961d29f65bb14d119c1bc2e4d1c95440
-      size: 197257
+      md5: 2dec0871c16cf96c3bfe73563e55fbc6
+      size: 209188
     - path: src/data_processing.py
       hash: md5
       md5: 44241a638adf88449a3db17ebd789ce0
@@ -20,13 +20,13 @@ stages:
     outs:
     - path: data/baseline_sample
       hash: md5
-      md5: 07105758a33c1f7da063febecb3b6419.dir
-      size: 9902
+      md5: 568d54ee6f5d072e3d381f650669d0dd.dir
+      size: 10479
       nfiles: 4
     - path: data/processed
       hash: md5
-      md5: d71ffb744a7a0a1a241214bf5c530ef9.dir
-      size: 30967
+      md5: a6f5c0cf94e0581d7ce164994336e611.dir
+      size: 33138
       nfiles: 10
   validate_data:
     cmd: python src/validate_data.py --new_data data/processed/train 
@@ -35,13 +35,13 @@ stages:
     deps:
     - path: data/baseline_sample
       hash: md5
-      md5: 07105758a33c1f7da063febecb3b6419.dir
-      size: 9902
+      md5: 568d54ee6f5d072e3d381f650669d0dd.dir
+      size: 10479
       nfiles: 4
     - path: data/processed/train
       hash: md5
-      md5: 3ed0aba704146f2b5d9c9e4720b3b395.dir
-      size: 22892
+      md5: bdfcaee90fdb3389452d7cd4d25002eb.dir
+      size: 25063
       nfiles: 4
     - path: src/validate_data.py
       hash: md5
@@ -140,12 +140,12 @@ stages:
       nfiles: 4
   trigger_training:
     cmd: python src/trigger_training.py  --train_data data/processed/train  
-      --model_out model/spark_model  --profile low_resource
+      --model_out model/spark_model  --profile more_cores
     deps:
     - path: data/processed/train
       hash: md5
-      md5: 3ed0aba704146f2b5d9c9e4720b3b395.dir
-      size: 22892
+      md5: bdfcaee90fdb3389452d7cd4d25002eb.dir
+      size: 25063
       nfiles: 4
     - path: drift_status.json
       hash: md5
@@ -153,26 +153,26 @@ stages:
       size: 33
     - path: params.yaml
       hash: md5
-      md5: 380415592ed01e2f039a6c17553a1865
-      size: 724
+      md5: 2e2c92dcc42f4bab0b01dd92b25e261f
+      size: 722
     - path: src/train.py
       hash: md5
-      md5: c736d15fa6cbd43b45a64894af452d6f
-      size: 10646
+      md5: 14c805562b9e1e2919507d75c6a3c937
+      size: 17303
     - path: src/trigger_training.py
       hash: md5
-      md5: 820a6be0c8d5e7f6381d91a4d716eca9
-      size: 2421
+      md5: 90492e138691b5386e89063d8aeab48f
+      size: 2403
     params:
       params.yaml:
-        experiment_profile: low_resource
+        experiment_profile: more_cores
     outs:
     - path: metrics.json
       hash: md5
-      md5: 898cf449a5f403c84190e0bd6a4e7fe0
-      size: 64
+      md5: 9ab4a9ea4cd8bd71563eb1edb523c959
+      size: 221
     - path: model/spark_model
       hash: md5
-      md5: 7a686040d4f77d81e77987b7600defd5.dir
-      size: 16859
+      md5: b1df7f15cc1ba3d8e50fefdf541de203.dir
+      size: 18263
       nfiles: 64

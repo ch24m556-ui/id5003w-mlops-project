@@ -1,0 +1,28 @@
+{
+    "categorical_features": [
+        "Sex",
+        "Embarked",
+        "Title"
+    ],
+    "numerical_features": [
+        "Pclass",
+        "Age_imputed",
+        "SibSp",
+        "Parch",
+        "Fare",
+        "IsAlone",
+        "FamilySize"
+    ],
+    "all_features": [
+        "Pclass",
+        "Age_imputed",
+        "SibSp",
+        "Parch",
+        "Fare",
+        "IsAlone",
+        "FamilySize",
+        "Sex_vec",
+        "Embarked_vec",
+        "Title_vec"
+    ]
+}

@@ -1,0 +1,11 @@
+{
+    "accuracy": 0.8321678321678322,
+    "weightedPrecision": 0.8341361652531865,
+    "weightedRecall": 0.8321678321678321,
+    "weightedFMeasure": 0.8287097517866748,
+    "weightedFMeasure_beta": 0.829783852511125,
+    "falsePositiveRate_0": 0.2982456140350877,
+    "falsePositiveRate_1": 0.08139534883720931,
+    "truePositiveRate_0": 0.9186046511627907,
+    "truePositiveRate_1": 0.7017543859649122
+}
