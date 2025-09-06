@@ -1,8 +1,6 @@
 # test_api.py
-
 import requests
 
-# The URL of your running FastAPI application
 API_URL = "http://127.0.0.1:8000/predict"
 
 def test_predict_endpoint_survives():
@@ -18,7 +16,8 @@ def test_predict_endpoint_survives():
         "Parch": 0,
         "Fare": 71.2833,
         "Sex": "female",
-        "Embarked": "C"
+        "Embarked": "C",
+        "Name": "Cumings, Mrs. John Bradley (Florence Briggs Thayer)"
     }
 
     response = requests.post(API_URL, json=payload)
@@ -36,7 +35,7 @@ def test_predict_endpoint_survives():
     assert isinstance(response_data["prediction"], int)
     assert response_data["prediction_label"] == "Survived"
     assert response_data["prediction"] == 1
-    print("\n✅ test_predict_endpoint_survives: PASSED")
+    print("\ntest_predict_endpoint_survives: PASSED")
 
 
 def test_predict_endpoint_dies():
@@ -52,7 +51,8 @@ def test_predict_endpoint_dies():
         "Parch": 0,
         "Fare": 8.05,
         "Sex": "male",
-        "Embarked": "S"
+        "Embarked": "S",
+        "Name": "Heikkinen, Mr. Lauri"
     }
 
     response = requests.post(API_URL, json=payload)
@@ -70,4 +70,9 @@ def test_predict_endpoint_dies():
     assert isinstance(response_data["prediction"], int)
     assert response_data["prediction_label"] == "Did not survive"
     assert response_data["prediction"] == 0
-    print("✅ test_predict_endpoint_dies: PASSED")
+    print("test_predict_endpoint_dies: PASSED")
+
+if __name__ == "__main__":
+    test_predict_endpoint_survives()
+    test_predict_endpoint_dies()
+    print("All tests passed!")

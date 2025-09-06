@@ -1,12 +1,18 @@
 # app.py
 
+import os
+import sys
+
+# Set the Python executable paths for PySpark
+os.environ['PYSPARK_PYTHON'] = sys.executable
+os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
 import streamlit as st
 import pandas as pd
 from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
+from pyspark.sql.functions import col, when, regexp_extract
 
 # --- Helper Functions ---
-
 @st.cache_resource
 def get_spark_session():
     """
@@ -20,7 +26,6 @@ def get_spark_session():
         .getOrCreate()
     )
 
-# THE FIX IS HERE: The 'spark' argument is now '_spark'
 @st.cache_resource
 def load_model(_spark, model_path: str):
     """
@@ -36,7 +41,6 @@ def load_model(_spark, model_path: str):
         return None
 
 # --- Streamlit App Main Function ---
-
 def main():
     # --- Page Configuration ---
     st.set_page_config(
@@ -51,7 +55,6 @@ def main():
 
     # --- Initialize Spark and Load Model ---
     spark = get_spark_session()
-    # The function call here does not need to change
     model = load_model(spark, "model/spark_model")
 
     if model:
@@ -66,6 +69,7 @@ def main():
                 sex = st.radio("Sex:", ('male', 'female'), horizontal=True)
                 age = st.slider("Age:", 0, 100, 30)
                 embarked = st.selectbox("Port of Embarkation:", ('S', 'C', 'Q'))
+                name = st.text_input("Passenger Name:", value="Cumings, Mrs. John Bradley (Florence Briggs Thayer)")
 
             with col2:
                 fare = st.slider("Fare:", 0, 512, 32)
@@ -75,15 +79,28 @@ def main():
             submitted = st.form_submit_button("Predict Survival")
 
         if submitted:
-            # --- Prediction Logic ---
+            # --- Feature Engineering ---
             user_input = {
                 'Pclass': pclass, 'Age': age, 'SibSp': sibsp, 
-                'Parch': parch, 'Fare': fare, 'Sex': sex, 'Embarked': embarked
+                'Parch': parch, 'Fare': fare, 'Sex': sex, 
+                'Embarked': embarked, 'Name': name
             }
             
             pandas_df = pd.DataFrame([user_input])
             spark_df = spark.createDataFrame(pandas_df)
             
+            # Perform the same feature engineering as in data_processing.py
+            spark_df = spark_df.withColumn("Title", regexp_extract(col("Name"), " ([A-Za-z]+)\\.", 1))
+            spark_df = spark_df.withColumn("Title", when(col("Title") == "", "Other").otherwise(col("Title")))
+            
+            # Add FamilySize and IsAlone features
+            spark_df = spark_df.withColumn("FamilySize", col("SibSp") + col("Parch") + 1)
+            spark_df = spark_df.withColumn("IsAlone", when(col("FamilySize") == 1, 1).otherwise(0))
+            
+            # Use Age as Age_imputed (assuming no missing values in API input)
+            spark_df = spark_df.withColumn("Age_imputed", col("Age"))
+            
+            # --- Prediction Logic ---
             prediction_df = model.transform(spark_df)
             result = prediction_df.select("prediction", "probability").first()
             
